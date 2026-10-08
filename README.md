@@ -22,16 +22,43 @@ if you allow it, guide it: tap, scroll and type **inside your app only**.
 
 ## Install
 
+### From Maven Central
+
 ```kotlin
-// build.gradle.kts
+// settings.gradle.kts: mavenCentral() in dependencyResolutionManagement.repositories (the default)
+// app/build.gradle.kts
 dependencies {
     implementation("net.gaiadesk:embed-android:0.1.0")
 }
 ```
 
-To build the AAR yourself: `scripts/fetch-binary.sh 0.1.0` puts a release's `.so` files in
-`embed/src/main/jniLibs`, then `./gradlew :embed:assembleRelease`
-(`./gradlew :embed:publishToMavenLocal` for a local Maven copy).
+The AAR carries `libgaiadesk_embed.so` for arm64-v8a, armeabi-v7a and x86_64 and has no
+dependencies besides the Android SDK. `minSdk` 26.
+
+### Without a Maven repository (the AAR from the GitHub release)
+
+Every [release](https://github.com/Gaia-Desk/gaiadesk-embed-android/releases) carries
+`embed-android-<version>.aar` (and `SHA256SUMS`). Put it in your app module's `libs/` and:
+
+```kotlin
+// app/build.gradle.kts
+dependencies {
+    implementation(files("libs/embed-android-0.1.0.aar"))
+}
+```
+
+That is all: the AAR needs nothing else on the classpath. Its consumer ProGuard rules come with it.
+(An app module can take a local `.aar` this way; an Android *library* module cannot re-publish one,
+so a library of yours should take the Maven coordinate instead.)
+
+### A local build
+
+`scripts/fetch-binary.sh 0.1.0` puts a release's `.so` files in `embed/src/main/jniLibs` (or a
+GaiaDesk build of the library puts its own there), then:
+
+- `./gradlew :embed:assembleRelease` → `embed/build/outputs/aar/embed-release.aar`;
+- `./gradlew :embed:publishToMavenLocal` → `~/.m2` as `net.gaiadesk:embed-android:<version>`
+  (add `mavenLocal()` to your repositories). The React Native and Flutter wrappers can use either.
 
 ## Quick start
 
@@ -135,6 +162,19 @@ masked card, a Buy button and Get help. Their intent extras (`token`, `server`, 
 ```sh
 ./gradlew :examples:compose:installDebug
 adb shell am start -n net.gaiadesk.examples.compose/.MainActivity --es token gdemb_…
+```
+
+## Releasing (maintainers)
+
+```sh
+# 1. In GaiaDesk: scripts/build-embed-android.sh (or the farm's embed-android.yml)
+#    → embed/out/android/jniLibs.zip (+ .sha256)
+# 2. Here: checks the .so files, runs the JVM tests, publishes into embed/build/staging-repo,
+#    gathers dist/ (AAR, sources, javadoc, POM, jniLibs.zip, the Maven bundle, SHA256SUMS):
+scripts/release.sh 0.1.0 <gaiadesk checkout>/embed/out/android/jniLibs.zip
+# 3. It prints the rest: tag, `gh release create … dist/*`, and the Maven Central upload
+#    (`./gradlew :embed:publishAllPublicationsToMavenCentralRepository` with a Central Portal
+#    token and a signing key in ORG_GRADLE_PROJECT_* env vars; see embed/build.gradle.kts).
 ```
 
 ## Licence

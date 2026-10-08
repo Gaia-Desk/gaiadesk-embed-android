@@ -6,3 +6,5 @@ local.properties
 .kotlin/
 # The prebuilt library: fetched (scripts/fetch-binary.sh) or built, never committed.
 embed/src/main/jniLibs/
+# Release assets assembled by scripts/release.sh.
+dist/

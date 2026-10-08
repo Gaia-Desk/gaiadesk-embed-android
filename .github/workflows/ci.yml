@@ -1,0 +1,42 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      # The .so files are not in git. Take the released ones for this version
+      # when that release exists (before the first release: an AAR without them,
+      # which still proves the Kotlin, the tests and the publication).
+      - name: Fetch the released native library (if published)
+        run: |
+          v="$(sed -nE 's/^version = "(.*)"/\1/p' embed/build.gradle.kts)"
+          if scripts/fetch-binary.sh "$v"; then echo "jniLibs from release v$v"; else
+            echo "::warning::no v$v release yet: building without libgaiadesk_embed.so"; fi
+      - name: JVM tests
+        run: ./gradlew --no-daemon :embed:testDebugUnitTest
+      - name: Assemble the AAR and the examples
+        run: ./gradlew --no-daemon :embed:assembleRelease :examples:views:assembleDebug :examples:compose:assembleDebug
+      - name: Publication (AAR + sources + javadoc + POM) into the staging repository
+        run: |
+          ./gradlew --no-daemon --no-configuration-cache :embed:publishAllPublicationsToStagingRepository
+          find embed/build/staging-repo -type f \( -name '*.aar' -o -name '*.jar' -o -name '*.pom' \) | sort
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: embed-android
+          path: |
+            embed/build/staging-repo/
+            embed/build/reports/tests/
+          if-no-files-found: ignore
