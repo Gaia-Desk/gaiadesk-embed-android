@@ -70,4 +70,10 @@ internal interface NativeHost {
     fun appFrame(): DoubleArray?
     fun deliver(actionJson: String, token: Long)
     fun release()
+
+    /** The library's H.264 encoder (on its video thread): [VideoEncoder]. */
+    fun encoderOpen(width: Int, height: Int, kbps: Int, fps: Int): Boolean
+    /** The MASKED picture, RGBA; Annex-B units back, each behind a 4-byte length; null: refused. */
+    fun encode(rgba: ByteBuffer, width: Int, height: Int, ptsUs: Long, keyframe: Boolean): ByteArray?
+    fun encoderClose()
 }

@@ -204,6 +204,27 @@ internal class AndroidHost(
         }
     }
 
+    @Volatile private var encoder: VideoEncoder? = null
+
+    override fun encoderOpen(width: Int, height: Int, kbps: Int, fps: Int): Boolean {
+        encoder?.close()
+        encoder = VideoEncoder.open(width, height, kbps, fps)
+        return encoder != null
+    }
+
+    override fun encode(rgba: ByteBuffer, width: Int, height: Int, ptsUs: Long, keyframe: Boolean): ByteArray? =
+        try {
+            encoder?.encode(rgba, keyframe)
+        } catch (e: Exception) {
+            android.util.Log.w("gaiadesk_embed", "encode: $e")
+            null
+        }
+
+    override fun encoderClose() {
+        encoder?.close()
+        encoder = null
+    }
+
     override fun release() {
         if (!released.compareAndSet(false, true)) return
         main.post {

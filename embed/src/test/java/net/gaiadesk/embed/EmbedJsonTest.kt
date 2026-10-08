@@ -116,6 +116,14 @@ class EmbedJsonTest {
     }
 
     @Test
+    fun keyframesGetParameterSetsOnlyWhenMissing() {
+        val idr = byteArrayOf(0, 0, 0, 1, 0x65, 1)
+        val withSps = byteArrayOf(0, 0, 0, 1, 0x67, 1, 0, 0, 1, 0x68, 2, 0, 0, 1, 0x65, 3)
+        assertTrue(!net.gaiadesk.embed.internal.VideoEncoder.hasSps(idr))
+        assertTrue(net.gaiadesk.embed.internal.VideoEncoder.hasSps(withSps))
+    }
+
+    @Test
     fun theConsolesKeysMapToAndroidKeyCodes() {
         assertEquals(66, EmbedJson.keyCode("Enter"))
         assertEquals(67, EmbedJson.keyCode("Backspace"))
