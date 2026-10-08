@@ -95,8 +95,10 @@ class EmbedDeviceTest {
                 val at = IntArray(2)
                 a.button.getLocationInWindow(at)
                 assertEquals(null, Guided.tap(a, at[0] + 50f, at[1] + 50f))
-                assertEquals(1, a.taps)
             }
+            // A View delivers the click from a runnable it posts on the up: let it run.
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+            s.onActivity { a -> assertEquals(1, a.taps) }
         }
     }
 }
