@@ -50,7 +50,16 @@ class GaiaDeskEmbed private constructor(handle: Long, private val host: AndroidH
         /** Regions painted out from the very first frame: window pixels ([maskedRectOf]). */
         val maskedRects: List<RectF> = emptyList(),
         val capture: Capture = Capture.APP,
+        /** Views painted out wherever they are, measured with every frame (password fields are masked anyway). */
+        val maskedViews: List<View> = emptyList(),
     )
+
+    /**
+     * Your user's YES to a consent dialog, bound to what it asked: who sees, what is shared,
+     * whether the agent may guide. [start] only starts a session that matches it, once, within
+     * 10 minutes. From [requestConsent], or [recordConsent] after your own dialog.
+     */
+    class Consent internal constructor(val token: String, val company: String, val capture: Capture, val guided: Boolean)
 
     sealed class Event {
         data class State(val state: String) : Event()
@@ -73,17 +82,27 @@ class GaiaDeskEmbed private constructor(handle: Long, private val host: AndroidH
 
     /** Mask these rects (window pixels; [maskedRectOf]). Replaces any earlier set. */
     fun setMaskedRects(rects: List<RectF>) {
+        host.appRects = rects.map { doubleArrayOf(it.left.toDouble(), it.top.toDouble(), (it.right - it.left).toDouble(), (it.bottom - it.top).toDouble()) }
         host.withHandle(handle) { h ->
             if (!NativeBridge.setMasks(h, EmbedJson.flatten(rects))) throw lastError()
         }
     }
 
-    /** Mask these views (card numbers, passwords). Call again after your layout changes. */
-    fun setMaskedViews(views: List<View>) = setMaskedRects(views.mapNotNull(::maskedRectOf))
+    /**
+     * Mask these views (card numbers, balances) wherever they are: measured on the main thread
+     * with every frame and painted out of it. Replaces any earlier set. Password fields
+     * (EditText with a password inputType) are masked without being listed.
+     */
+    fun setMaskedViews(views: List<View>) = host.masks.setViews(views)
 
-    /** Pause (or resume) guided input, as the indicator's own button does. */
-    fun setPaused(paused: Boolean) {
-        host.withHandle(handle) { h -> NativeBridge.setPaused(h, paused) }
+    /**
+     * Pause (or resume) guided input. False when refused: you cannot resume a pause your
+     * customer made on the indicator — only they can.
+     */
+    fun setPaused(paused: Boolean): Boolean {
+        var ok = false
+        host.withHandle(handle) { h -> ok = NativeBridge.setPaused(h, paused) }
+        return ok
     }
 
     companion object {
@@ -101,18 +120,21 @@ class GaiaDeskEmbed private constructor(handle: Long, private val host: AndroidH
             private set
 
         /**
-         * Start sharing. [consentGranted] must be your user's answer to a consent dialog
-         * ([requestConsent], or your own): the library refuses without it. [onEvent] is called on
-         * the main thread. Call on the main thread, from the activity to share.
+         * Start sharing. [consent] is your user's YES to a consent dialog ([requestConsent], or
+         * your own and [recordConsent]); the library refuses a session that differs from what they
+         * agreed to (company, capture, guided). [onEvent] is called on the main thread. Call on the
+         * main thread, from the activity to share.
          */
         @JvmStatic
-        fun start(activity: Activity, config: Configuration, consentGranted: Boolean, onEvent: (Event) -> Unit): GaiaDeskEmbed {
+        fun start(activity: Activity, config: Configuration, consent: Consent, onEvent: (Event) -> Unit): GaiaDeskEmbed {
             val self = arrayOfNulls<GaiaDeskEmbed>(1)
             val host = AndroidHost(activity, config.capture) { e ->
                 if (e is Event.Ended && current === self[0]) current = null
                 onEvent(e)
             }
-            val h = NativeBridge.start(EmbedJson.config(config, consentGranted), host)
+            host.masks.setViews(config.maskedViews)
+            host.appRects = config.maskedRects.map { doubleArrayOf(it.left.toDouble(), it.top.toDouble(), (it.right - it.left).toDouble(), (it.bottom - it.top).toDouble()) }
+            val h = NativeBridge.start(EmbedJson.config(config, consent.token), host)
             if (h == 0L) throw lastError()
             val embed = GaiaDeskEmbed(h, host)
             self[0] = embed
@@ -126,15 +148,15 @@ class GaiaDeskEmbed private constructor(handle: Long, private val host: AndroidH
         fun consentText(company: String, guided: Boolean, capture: Capture = Capture.APP): Pair<String, String> =
             EmbedJson.consentText(company, guided, capture)
 
-        /** Ask the user (an AlertDialog); [answer] gets their choice on the main thread. */
+        /** Ask the user (an AlertDialog); [answer] gets their [Consent] on YES, null on no, on the main thread. */
         @JvmStatic
-        fun requestConsent(activity: Activity, company: String, guided: Boolean = false, capture: Capture = Capture.APP, answer: (Boolean) -> Unit) {
+        fun requestConsent(activity: Activity, company: String, guided: Boolean = false, capture: Capture = Capture.APP, answer: (Consent?) -> Unit) {
             val (title, message) = consentText(company, guided, capture)
             var answered = false
             fun once(v: Boolean) {
                 if (!answered) {
                     answered = true
-                    answer(v)
+                    answer(if (v) recordConsent(company, guided, capture) else null)
                 }
             }
             AlertDialog.Builder(activity)
@@ -144,6 +166,16 @@ class GaiaDeskEmbed private constructor(handle: Long, private val host: AndroidH
                 .setNegativeButton("Don't share") { _, _ -> once(false) }
                 .setOnCancelListener { once(false) }
                 .show()
+        }
+
+        /**
+         * Your own consent dialog said YES to sharing [capture] with [company] (and, if [guided],
+         * to being guided): its [Consent] for [start]. Say exactly that in your dialog.
+         */
+        @JvmStatic
+        fun recordConsent(company: String, guided: Boolean = false, capture: Capture = Capture.APP): Consent {
+            val token = NativeBridge.recordConsent(company, capture.wire, guided) ?: throw lastError()
+            return Consent(token, company, capture, guided)
         }
 
         /** A view's frame in its window, in pixels: the space mask rects are in. */

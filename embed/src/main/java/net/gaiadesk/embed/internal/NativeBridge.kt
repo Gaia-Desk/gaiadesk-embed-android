@@ -23,13 +23,23 @@ internal object NativeBridge {
     /** The customer pressed Stop on the indicator: ends with "stopped". */
     @JvmStatic external fun customerStop(handle: Long)
 
-    @JvmStatic external fun setPaused(handle: Long, paused: Boolean)
+    /** The APP pauses/resumes guided input; false: it cannot resume the customer's pause. */
+    @JvmStatic external fun setPaused(handle: Long, paused: Boolean): Boolean
+
+    /** The CUSTOMER pressed Pause / Allow control on the indicator. */
+    @JvmStatic external fun customerPause(handle: Long, paused: Boolean)
+
+    /** Tell the agent something by code (`secure_screen`, `picture_paused`, `picture_resumed`). */
+    @JvmStatic external fun notice(handle: Long, code: String): Boolean
+
+    /** The user's YES to a consent dialog about [capture] with [company] (and guiding if [guided]): a token, or null. */
+    @JvmStatic external fun recordConsent(company: String, capture: String, guided: Boolean): String?
 
     /** x, y, w, h repeated, in window pixels. */
     @JvmStatic external fun setMasks(handle: Long, rects: DoubleArray): Boolean
 
-    /** RGBA, [height] rows of [stride] bytes in a direct buffer. 0 taken, 1 not capturing, -1 refused. */
-    @JvmStatic external fun pushFrame(handle: Long, pixels: ByteBuffer, width: Int, height: Int, stride: Int, x: Double, y: Double, w: Double, h: Double): Int
+    /** RGBA, [height] rows of [stride] bytes in a direct buffer; [masks] measured with it (x, y, w, h repeated, window pixels, or null). 0 taken, 1 not capturing, -1 refused. */
+    @JvmStatic external fun pushFrame(handle: Long, pixels: ByteBuffer, width: Int, height: Int, stride: Int, x: Double, y: Double, w: Double, h: Double, masks: DoubleArray?): Int
 
     /** The answer to [NativeHost.deliver]'s [token]: [reason] null when applied. */
     @JvmStatic external fun actionResult(handle: Long, token: Long, reason: String?)

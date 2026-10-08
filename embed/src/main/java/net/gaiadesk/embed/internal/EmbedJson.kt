@@ -7,10 +7,12 @@ import org.json.JSONObject
 
 /** The JSON the library speaks, and the small pure decisions around it. JVM-tested. */
 internal object EmbedJson {
-    fun config(c: GaiaDeskEmbed.Configuration, consentGranted: Boolean): String {
+    /** [consentToken]: the user's recorded YES (`recordConsent`); null = no consent. */
+    fun config(c: GaiaDeskEmbed.Configuration, consentToken: String?): String {
         val o = JSONObject()
             .put("embed_token", c.embedToken)
-            .put("consent_granted", consentGranted)
+            .put("consent_granted", consentToken != null)
+        consentToken?.let { o.put("consent_token", it) }
             .put("company", c.company)
             .put("capture", c.capture.wire)
             .put("guided", c.guided)
@@ -34,6 +36,13 @@ internal object EmbedJson {
             out[i * 4 + 2] = (r.right - r.left).toDouble()
             out[i * 4 + 3] = (r.bottom - r.top).toDouble()
         }
+        return out
+    }
+
+    /** x, y, w, h quadruples, flattened. */
+    fun flatten2(rects: List<DoubleArray>): DoubleArray {
+        val out = DoubleArray(rects.size * 4)
+        rects.forEachIndexed { i, r -> r.copyInto(out, i * 4, 0, 4) }
         return out
     }
 
@@ -76,6 +85,14 @@ internal object EmbedJson {
         val fw = ((w * s).toInt() / 16 * 16).coerceAtLeast(16)
         val fh = ((h * s).toInt() / 16 * 16).coerceAtLeast(16)
         return fw to fh
+    }
+
+    /** Two sizes have the same shape (aspect within 2%). Pure. */
+    fun sameShape(w1: Int, h1: Int, w2: Int, h2: Int): Boolean {
+        if (w1 <= 0 || h1 <= 0 || w2 <= 0 || h2 <= 0) return false
+        val a = w1.toDouble() / h1
+        val b = w2.toDouble() / h2
+        return kotlin.math.abs(a / b - 1.0) <= 0.02
     }
 
     /** The console's keys as Android key codes (KeyEvent.KEYCODE_*), or null. */

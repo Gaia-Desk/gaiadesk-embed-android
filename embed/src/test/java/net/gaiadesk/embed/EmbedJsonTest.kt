@@ -2,6 +2,7 @@ package net.gaiadesk.embed
 
 import android.graphics.RectF
 import net.gaiadesk.embed.internal.EmbedJson
+import net.gaiadesk.embed.internal.Masks
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -17,8 +18,9 @@ class EmbedJsonTest {
     @Test
     fun configCarriesConsentCaptureAndMasks() {
         val c = GaiaDeskEmbed.Configuration(token, "Acme", server = "http://127.0.0.1:9000", guided = true, maskedRects = listOf(rect(10f, 20f, 110f, 50f)))
-        val o = JSONObject(EmbedJson.config(c, consentGranted = true))
+        val o = JSONObject(EmbedJson.config(c, consentToken = "gdc_0123"))
         assertEquals(true, o.getBoolean("consent_granted"))
+        assertEquals("gdc_0123", o.getString("consent_token"))
         assertEquals("app", o.getString("capture"))
         assertEquals(true, o.getBoolean("guided"))
         assertEquals("http://127.0.0.1:9000", o.getString("server"))
@@ -26,9 +28,10 @@ class EmbedJsonTest {
         assertEquals(100.0, m.getDouble("w"), 0.0)
         assertEquals(30.0, m.getDouble("h"), 0.0)
         assertTrue(!o.has("window_id"))
-        val screen = JSONObject(EmbedJson.config(c.copy(capture = GaiaDeskEmbed.Capture.SCREEN, maskedRects = emptyList()), false))
+        val screen = JSONObject(EmbedJson.config(c.copy(capture = GaiaDeskEmbed.Capture.SCREEN, maskedRects = emptyList()), null))
         assertEquals("screen", screen.getString("capture"))
-        assertEquals(false, screen.getBoolean("consent_granted"))
+        assertEquals("no recorded consent: refused by the library", false, screen.getBoolean("consent_granted"))
+        assertTrue(!screen.has("consent_token"))
         assertTrue(!screen.has("masks"))
     }
 
@@ -74,6 +77,24 @@ class EmbedJsonTest {
         assertEquals(400 to 640, EmbedJson.fit(400, 640), )
         val (w, h) = EmbedJson.fit(1001, 777)
         assertTrue(w % 16 == 0 && h % 16 == 0)
+    }
+
+    @Test
+    fun passwordFieldsAreRecognisedByTheirInputType() {
+        // InputType: TEXT|PASSWORD, TEXT|VISIBLE_PASSWORD, TEXT|WEB_PASSWORD, NUMBER|PASSWORD.
+        for (t in listOf(0x81, 0x91, 0xe1, 0x12)) assertTrue("$t", Masks.isSecureInputType(t))
+        // TEXT plain, TEXT|EMAIL, NUMBER plain, PHONE.
+        for (t in listOf(0x01, 0x21, 0x02, 0x03)) assertTrue("$t", !Masks.isSecureInputType(t))
+    }
+
+    @Test
+    fun maskOverlapAndShapes() {
+        val card = doubleArrayOf(10.0, 10.0, 100.0, 50.0)
+        assertTrue(Masks.overlaps(card, doubleArrayOf(50.0, 40.0, 10.0, 10.0)))
+        assertTrue("touching edges do not overlap", !Masks.overlaps(card, doubleArrayOf(110.0, 10.0, 10.0, 10.0)))
+        assertTrue(EmbedJson.sameShape(576, 1280, 1080, 2400))
+        assertTrue("rotated: refused", !EmbedJson.sameShape(1280, 576, 1080, 2400))
+        assertEquals(listOf(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0), EmbedJson.flatten2(listOf(doubleArrayOf(1.0, 2.0, 3.0, 4.0), doubleArrayOf(5.0, 6.0, 7.0, 8.0))).toList())
     }
 
     @Test

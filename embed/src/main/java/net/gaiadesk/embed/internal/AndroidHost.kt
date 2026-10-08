@@ -37,6 +37,16 @@ internal class AndroidHost(
     private var overlay: IndicatorOverlay? = null
     private var source: Capture? = null
     private val released = AtomicBoolean(false)
+    /** Registered masked views and auto-masked password fields (measured per frame). */
+    val masks = Masks()
+    /** The app's own mask rects (`setMaskedRects`), window pixels. */
+    @Volatile var appRects: List<DoubleArray> = emptyList()
+    /** The masks as last measured by [observe], for the projection's thread. */
+    @Volatile private var lastMasks: DoubleArray? = null
+    /** The resumed window has focus (nothing of the app's or the system's over it). */
+    @Volatile private var focused = false
+    /** The window is FLAG_SECURE (told to the agent on change). */
+    private var secureShown = false
 
     private val lifecycle = object : Application.ActivityLifecycleCallbacks {
         override fun onActivityResumed(a: Activity) {
@@ -97,7 +107,7 @@ internal class AndroidHost(
     override fun showIndicator(title: String, company: String, guided: Boolean): Boolean {
         main.post {
             if (overlay != null) return@post
-            val o = IndicatorOverlay(resumed ?: app, title, guided, onStop = { live { NativeBridge.customerStop(it) } }, onPause = { p -> live { NativeBridge.setPaused(it, p) } })
+            val o = IndicatorOverlay(resumed ?: app, title, guided, onStop = { live { NativeBridge.customerStop(it) } }, onPause = { p -> live { NativeBridge.customerPause(it, p) } })
             overlay = o
             resumed?.let { o.attachTo(it) }
             main.removeCallbacks(watch)
@@ -133,9 +143,13 @@ internal class AndroidHost(
     override fun startCapture(surface: String, fps: Int): Boolean {
         val done = CountDownLatch(1)
         val ok = AtomicBoolean(false)
-        val sink = FrameSink { px, w, h, stride, pic -> push(px, w, h, stride, pic) }
+        val sink = FrameSink { px, w, h, stride, pic, m -> push(px, w, h, stride, pic, m) }
         main.post {
-            val c = if (surface == "screen" && capture == GaiaDeskEmbed.Capture.SCREEN) ScreenCapture(app, sink) else WindowCapture({ resumed }, sink)
+            val c = if (surface == "screen" && capture == GaiaDeskEmbed.Capture.SCREEN) {
+                ScreenCapture(app, sink, { focused }, { lastMasks })
+            } else {
+                WindowCapture(::prepare, sink)
+            }
             source = c
             c.start(fps) { started ->
                 ok.set(started)
@@ -157,7 +171,8 @@ internal class AndroidHost(
 
     override fun deliver(actionJson: String, token: Long) {
         main.post {
-            val reason = Guided.deliver(actionJson, resumed, overlay)
+            val decor = resumed?.window?.decorView
+            val reason = Guided.deliver(actionJson, resumed, overlay, masks.measure(decor) + appRects)
             if (token != 0L) live { NativeBridge.actionResult(it, token, reason) }
         }
     }
@@ -179,8 +194,14 @@ internal class AndroidHost(
 
     private fun observe() {
         val a = resumed
-        visible = overlay?.isVisible(a) ?: false
         val decor = a?.window?.decorView
+        focused = decor?.hasWindowFocus() == true
+        // The indicator counts as visible only while the app's window has
+        // focus: under a dialog, the shade or another app nothing is sent.
+        // (Cooperative: this layer runs in the app's process and an app can
+        // lie to it; the library's guarantees are the rest.)
+        visible = focused && (overlay?.isVisible(a) ?: false)
+        lastMasks = decor?.let { EmbedJson.flatten2(masks.measure(it) + appRects) }
         frame = if (decor != null && decor.width > 0) {
             val at = IntArray(2)
             decor.getLocationOnScreen(at)
@@ -190,9 +211,26 @@ internal class AndroidHost(
         }
     }
 
-    private fun push(px: ByteBuffer, w: Int, h: Int, stride: Int, pic: DoubleArray): Boolean {
+    /** One window capture's shot, decided now (main thread); null: nothing now. */
+    private fun prepare(): Shot? {
+        val a = resumed ?: return null
+        val window = a.window ?: return null
+        val decor = window.decorView
+        if (!decor.isAttachedToWindow || decor.width <= 0 || !decor.hasWindowFocus()) return null
+        val secure = window.attributes.flags and android.view.WindowManager.LayoutParams.FLAG_SECURE != 0
+        if (secure != secureShown) {
+            secureShown = secure
+            live { NativeBridge.notice(it, if (secure) "secure_screen" else "picture_resumed") }
+        }
+        val at = IntArray(2)
+        decor.getLocationOnScreen(at)
+        val picture = doubleArrayOf(at[0].toDouble(), at[1].toDouble(), decor.width.toDouble(), decor.height.toDouble())
+        return Shot(window, picture, EmbedJson.flatten2(masks.measure(decor) + appRects), secure)
+    }
+
+    private fun push(px: ByteBuffer, w: Int, h: Int, stride: Int, pic: DoubleArray, m: DoubleArray?): Boolean {
         var going = false
-        live { going = NativeBridge.pushFrame(it, px, w, h, stride, pic[0], pic[1], pic[2], pic[3]) != 1 }
+        live { going = NativeBridge.pushFrame(it, px, w, h, stride, pic[0], pic[1], pic[2], pic[3], m) != 1 }
         return going
     }
 }

@@ -22,7 +22,12 @@ import android.widget.TextView
  * The rest of the overlay is touch-through and draws the agent's pointer and hints. Main thread.
  *
  * The library sends frames only while [isVisible] says so (polled by [AndroidHost]): attached to
- * the resumed activity, shown, opaque, and fully on screen.
+ * the resumed activity, shown, opaque, fully on screen, the decor view's top child — and the host
+ * adds that the activity's window has focus (no dialog, notification shade or other app over it).
+ *
+ * This check is COOPERATIVE: it runs in the app's own process, so an app that wanted to could hide
+ * the pill and lie about it. What the library enforces regardless is the rest: consent bound to
+ * the session, masks painted before encoding, guided input refused unless allowed.
  */
 internal class IndicatorOverlay(context: Context, private val title: String, guided: Boolean, onStop: () -> Unit, onPause: (Boolean) -> Unit) {
     private val density = context.resources.displayMetrics.density

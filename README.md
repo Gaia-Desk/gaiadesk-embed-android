@@ -77,13 +77,13 @@ import net.gaiadesk.embed.GaiaDeskEmbed
 import net.gaiadesk.embed.GaiaDeskEmbedException
 
 fun getHelp(activity: Activity, token: String) {
-    GaiaDeskEmbed.requestConsent(activity, "Acme") { agreed ->
-        if (!agreed) return@requestConsent
+    GaiaDeskEmbed.requestConsent(activity, "Acme") { consent ->
+        if (consent == null) return@requestConsent       // the user said no
         try {
             help = GaiaDeskEmbed.start(
                 activity,
-                GaiaDeskEmbed.Configuration(token, "Acme", maskedRects = listOfNotNull(GaiaDeskEmbed.maskedRectOf(cardView))),
-                consentGranted = agreed,
+                GaiaDeskEmbed.Configuration(token, "Acme", maskedViews = listOf(cardView)),
+                consent,
             ) { e ->
                 when (e) {
                     is GaiaDeskEmbed.Event.Code -> showCode(e.code)          // read it to the agent
@@ -107,15 +107,32 @@ fun getHelp(activity: Activity, token: String) {
 | `server` | default `https://gaiadesk.net` |
 | `guided` | `false` (default). `true` allows guided input in a `cobrowse` session |
 | `fps` | 1–30 (default 15) |
+| `maskedViews` | views painted out wherever they are, measured with every frame |
 | `maskedRects` | regions painted out from the first frame: window pixels (`maskedRectOf(view)`) |
 | `capture` | `Capture.APP` (default) or `Capture.SCREEN` (opt-in, see below) |
 
+### Consent
+
+`start` takes a `Consent`: your user's YES, bound to what they were asked — who sees, what is
+shared, whether the agent may guide. `requestConsent` shows the dialog and gives you one (or null);
+with your own dialog, call `recordConsent(company, guided, capture)` when the user agrees, saying
+exactly that in it. The library refuses a session that differs from the consent (another company,
+another capture, guided when the user was asked about view-only), and each consent starts one
+session, within 10 minutes.
+
 ### Masking
 
-Pass the regions you know at start (`maskedRectOf(view)`; in Compose, `boundsInWindow()` from
-`onGloballyPositioned`): an agent can join straight away, and only start-time masks are guaranteed
-to cover the first frame. Later, `setMaskedViews` / `setMaskedRects` replace the set; call them
-again when your layout changes. If your window cannot be located, the whole picture is painted out.
+List your sensitive views in `maskedViews` (or `setMaskedViews` later): they are measured on the
+main thread with every captured frame and painted out of it, so a mask moves with its view.
+Password fields (an `EditText` whose inputType is a password variation) are masked without being
+listed, and typing never reaches them. Compose fields are not Views: give their rects
+(`boundsInWindow()` from `onGloballyPositioned`) to `maskedRects` / `setMaskedRects`. Masks fail
+closed: if your window cannot be located, if a frame's shape does not match the screen it claims
+(a rotation in flight), and for 300 ms after the masks or your window move, the whole picture is
+painted out.
+
+A window with `FLAG_SECURE` (one your app protects from screenshots) is never captured: the agent
+sees black and is told the screen is protected.
 
 ### Guided mode
 
@@ -124,8 +141,14 @@ The agent's clicks become taps, scrolling becomes a mouse-wheel scroll, typing b
 (text no key map can type goes into the focused `EditText`), and Enter, Tab, Backspace, Delete,
 Escape, arrows, Home and End are keys — all dispatched to the resumed activity's own window. A
 request outside your window, on a masked region, on the indicator, or while none of your
-activities is in front is refused; your customer can pause it from the indicator (or you call
-`setPaused(true)`).
+activities is in front with focus (a dialog, the notification shade or another app over it) is
+refused; typing and keys never go to a password field or a masked field, and Tab never moves focus
+into one. Your customer can pause it from the indicator, and only they can resume it; you can pause
+too (`setPaused(true)`) and resume your own pause.
+
+The indicator check is cooperative: it runs in your process. What the library enforces whatever
+your app does is consent bound to the session, masks painted before encoding, and the guided-input
+rules.
 
 ### Sharing the whole screen (opt-in)
 
@@ -150,7 +173,8 @@ a time (a second `start` throws `busy`).
 ### Limits
 
 The window capture copies your activity's window: dialogs and popups shown in windows of their own
-are not in the picture (the customer still sees them). `stop()` returns at once; the session winds
+are not in the picture (the customer still sees them), and nothing is sent while such a window has
+focus. In `Capture.SCREEN` mode a rotation pauses the picture until the orientation returns. `stop()` returns at once; the session winds
 down in the background.
 
 ## Examples

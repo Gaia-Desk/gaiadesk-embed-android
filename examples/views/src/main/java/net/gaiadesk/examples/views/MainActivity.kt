@@ -97,20 +97,20 @@ class MainActivity : Activity() {
 
     private fun getHelp() {
         val guided = intent.getBooleanExtra("guided", false)
-        val go = { agreed: Boolean -> if (agreed) start(guided) }
-        if (intent.getBooleanExtra("test_consent", false)) go(true) else GaiaDeskEmbed.requestConsent(this, "Acme", guided, answer = go)
+        val go = { consent: GaiaDeskEmbed.Consent? -> if (consent != null) start(guided, consent) }
+        if (intent.getBooleanExtra("test_consent", false)) go(GaiaDeskEmbed.recordConsent("Acme", guided)) else GaiaDeskEmbed.requestConsent(this, "Acme", guided, answer = go)
     }
 
-    private fun start(guided: Boolean) {
+    private fun start(guided: Boolean, consent: GaiaDeskEmbed.Consent) {
         val cfg = GaiaDeskEmbed.Configuration(
             embedToken = token.text.toString(),
             company = "Acme",
             server = intent.getStringExtra("server"),
             guided = guided,
-            maskedRects = listOfNotNull(GaiaDeskEmbed.maskedRectOf(card)),
+            maskedViews = listOf(card),
         )
         try {
-            help = GaiaDeskEmbed.start(this, cfg, consentGranted = true, onEvent = ::on)
+            help = GaiaDeskEmbed.start(this, cfg, consent = consent, onEvent = ::on)
         } catch (e: GaiaDeskEmbedException) {
             emit(JSONObject().put("start_error", e.code).put("message", e.message))
             status.text = "Could not start: ${e.message}"

@@ -46,17 +46,35 @@ class EmbedDeviceTest {
     fun theLibraryRefusesWithoutConsentOrWithAnApiKey() {
         ActivityScenario.launch(Host::class.java).use { s ->
             s.onActivity { a ->
-                for ((cfg, consent, want) in listOf(
-                    Triple(GaiaDeskEmbed.Configuration(token, "Acme"), false, "consent_required"),
-                    Triple(GaiaDeskEmbed.Configuration("gdk_live_secret", "Acme"), true, "bad_token"),
-                )) {
+                fun refused(cfg: GaiaDeskEmbed.Configuration, consent: GaiaDeskEmbed.Consent, want: String, why: String) {
                     try {
                         GaiaDeskEmbed.start(a, cfg, consent) {}
-                        fail("started without $want")
+                        fail("started: $why")
                     } catch (e: GaiaDeskEmbedException) {
-                        assertEquals(want, e.code)
+                        assertEquals(why, want, e.code)
                     }
                 }
+                refused(GaiaDeskEmbed.Configuration("gdk_live_secret", "Acme"), GaiaDeskEmbed.recordConsent("Acme"), "bad_token", "an API key is not an embed token")
+                // Consent is bound to what the user was asked.
+                refused(GaiaDeskEmbed.Configuration(token, "Acme", guided = true), GaiaDeskEmbed.recordConsent("Acme", guided = false), "consent_required", "asked view-only, starting guided")
+                refused(GaiaDeskEmbed.Configuration(token, "Acme"), GaiaDeskEmbed.recordConsent("Evil Corp"), "consent_required", "another company")
+                val once = GaiaDeskEmbed.recordConsent("Acme")
+                refused(GaiaDeskEmbed.Configuration("gdk_live_secret", "Acme"), once, "bad_token", "spends nothing: the config is refused first")
+            }
+        }
+    }
+
+    @Test
+    fun guidedTypingNeverReachesAPasswordField() {
+        ActivityScenario.launch(Host::class.java).use { s ->
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+            s.onActivity { a ->
+                val pw = android.widget.EditText(a).apply { inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD }
+                (a.button.parent as FrameLayout).addView(pw, FrameLayout.LayoutParams(400, 120))
+                pw.requestFocus()
+                assertEquals("masked", Guided.secret(a.currentFocus, emptyList()))
+                assertEquals("masked", Guided.deliver("{\"t\":\"type\",\"text\":\"hunter2\"}", a, null))
+                assertEquals("", pw.text.toString())
             }
         }
     }

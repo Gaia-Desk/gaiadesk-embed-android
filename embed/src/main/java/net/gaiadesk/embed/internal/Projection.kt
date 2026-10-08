@@ -27,14 +27,21 @@ import android.os.IBinder
  * Android 10+ requires. The app must declare FOREGROUND_SERVICE and
  * FOREGROUND_SERVICE_MEDIA_PROJECTION (README); without them it fails as capture_failed.
  */
-internal class ScreenCapture(private val context: Context, private val sink: FrameSink) : Capture {
+internal class ScreenCapture(
+    private val context: Context,
+    private val sink: FrameSink,
+    /** The app's window has focus: the projection sends nothing while it does not. */
+    private val focused: () -> Boolean,
+    /** The masks as last measured on the main thread (window pixels). */
+    private val masks: () -> DoubleArray?,
+) : Capture {
     override fun start(fps: Int, done: (Boolean) -> Unit) {
         Projection.pending = { resultCode, data ->
             if (data == null || resultCode != Activity.RESULT_OK) {
                 done(false)
             } else {
                 Projection.onReady = { projection ->
-                    if (projection == null) done(false) else done(Projection.run(context, projection, fps, sink))
+                    if (projection == null) done(false) else done(Projection.run(context, projection, fps, sink, focused, masks))
                 }
                 val svc = Intent(context, ProjectionService::class.java).putExtra("code", resultCode).putExtra("data", data)
                 if (Build.VERSION.SDK_INT >= 26) context.startForegroundService(svc) else context.startService(svc)
@@ -54,13 +61,14 @@ internal object Projection {
     private var reader: ImageReader? = null
     private var thread: HandlerThread? = null
 
-    fun run(context: Context, p: MediaProjection, fps: Int, sink: FrameSink): Boolean {
-        val m = context.resources.displayMetrics
+    fun run(context: Context, p: MediaProjection, fps: Int, sink: FrameSink, focused: () -> Boolean, masks: () -> DoubleArray?): Boolean {
+        val dm = context.getSystemService(DisplayManager::class.java)
+        val screen = dm.getDisplay(android.view.Display.DEFAULT_DISPLAY)
+        val m = android.util.DisplayMetrics().also { @Suppress("DEPRECATION") screen.getRealMetrics(it) }
         val (w, h) = EmbedJson.fit(m.widthPixels, m.heightPixels)
         val t = HandlerThread("gd-embed-projection").apply { start() }
         val handler = Handler(t.looper)
         val r = ImageReader.newInstance(w, h, PixelFormat.RGBA_8888, 2)
-        val picture = doubleArrayOf(0.0, 0.0, m.widthPixels.toDouble(), m.heightPixels.toDouble())
         var last = 0L
         val gap = 1000L / fps.coerceIn(1, 30)
         r.setOnImageAvailableListener({ ir ->
@@ -69,9 +77,19 @@ internal object Projection {
                 val now = System.currentTimeMillis()
                 if (now - last < gap) return@setOnImageAvailableListener
                 last = now
+                // Nothing while the app is not in front (the screen is shared
+                // for the app's sake, not for whatever is over it).
+                if (!focused()) return@setOnImageAvailableListener
+                // The screen as it is NOW (rotation, navigation bar): the
+                // picture rect comes from the real metrics of this frame, and
+                // an image of another shape (rotated since the virtual display
+                // was made) is not sent at all.
+                val now_ = android.util.DisplayMetrics().also { @Suppress("DEPRECATION") screen.getRealMetrics(it) }
+                if (!EmbedJson.sameShape(img.width, img.height, now_.widthPixels, now_.heightPixels)) return@setOnImageAvailableListener
+                val picture = doubleArrayOf(0.0, 0.0, now_.widthPixels.toDouble(), now_.heightPixels.toDouble())
                 // A direct buffer of rowStride-wide rows: the library packs them.
                 val plane = img.planes[0]
-                sink.push(plane.buffer, w, h, plane.rowStride, picture)
+                sink.push(plane.buffer, w, h, plane.rowStride, picture, masks())
             } finally {
                 img.close()
             }
