@@ -70,7 +70,7 @@ val hasSigningKey = providers.gradleProperty("signingInMemoryKey").isPresent ||
 
 mavenPublishing {
     configure(AndroidSingleVariantLibrary(variant = "release", sourcesJar = true, publishJavadocJar = true))
-    publishToMavenCentral(SonatypeHost.CENTRAL_DEFAULT, automaticRelease = false)
+    publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL, automaticRelease = false)
     if (hasSigningKey) {
         signAllPublications()
     }

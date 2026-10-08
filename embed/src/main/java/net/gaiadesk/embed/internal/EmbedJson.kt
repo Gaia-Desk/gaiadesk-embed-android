@@ -12,11 +12,11 @@ internal object EmbedJson {
         val o = JSONObject()
             .put("embed_token", c.embedToken)
             .put("consent_granted", consentToken != null)
-        consentToken?.let { o.put("consent_token", it) }
             .put("company", c.company)
             .put("capture", c.capture.wire)
             .put("guided", c.guided)
             .put("fps", c.fps)
+        consentToken?.let { o.put("consent_token", it) }
         c.server?.let { o.put("server", it) }
         if (c.maskedRects.isNotEmpty()) {
             val a = JSONArray()
