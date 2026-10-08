@@ -2,6 +2,7 @@ package net.gaiadesk.embed
 
 import android.graphics.RectF
 import net.gaiadesk.embed.internal.EmbedJson
+import net.gaiadesk.embed.internal.Guided
 import net.gaiadesk.embed.internal.Masks
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -95,6 +96,14 @@ class EmbedJsonTest {
         assertTrue(EmbedJson.sameShape(576, 1280, 1080, 2400))
         assertTrue("rotated: refused", !EmbedJson.sameShape(1280, 576, 1080, 2400))
         assertEquals(listOf(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0), EmbedJson.flatten2(listOf(doubleArrayOf(1.0, 2.0, 3.0, 4.0), doubleArrayOf(5.0, 6.0, 7.0, 8.0))).toList())
+    }
+
+    @Test
+    fun clicksOnAMaskMeasuredNowAreRefused() {
+        val card = listOf(doubleArrayOf(10.0, 10.0, 100.0, 50.0))
+        assertTrue(Guided.onMask(50f, 30f, card))
+        assertTrue("the far edge is outside", !Guided.onMask(110f, 30f, card))
+        assertTrue(!Guided.onMask(50f, 30f, emptyList()))
     }
 
     @Test

@@ -125,8 +125,13 @@ session, within 10 minutes.
 List your sensitive views in `maskedViews` (or `setMaskedViews` later): they are measured on the
 main thread with every captured frame and painted out of it, so a mask moves with its view.
 Password fields (an `EditText` whose inputType is a password variation) are masked without being
-listed, and typing never reaches them. Compose fields are not Views: give their rects
-(`boundsInWindow()` from `onGloballyPositioned`) to `maskedRects` / `setMaskedRects`. Masks fail
+listed, and typing never reaches them.
+
+**Jetpack Compose:** Compose text fields are not Views, and this library has no Compose
+dependency, so a Compose password field is NOT found by itself: give its rect
+(`boundsInWindow()` from `onGloballyPositioned`) to `maskedRects` / `setMaskedRects`. In a Compose
+screen the focused View is the whole ComposeView, so while any mask is set guided typing and keys
+are refused there (fail closed: the library cannot tell which field has focus). Masks fail
 closed: if your window cannot be located, if a frame's shape does not match the screen it claims
 (a rotation in flight), and for 300 ms after the masks or your window move, the whole picture is
 painted out.

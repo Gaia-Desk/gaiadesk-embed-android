@@ -26,6 +26,9 @@ internal object NativeBridge {
     /** The APP pauses/resumes guided input; false: it cannot resume the customer's pause. */
     @JvmStatic external fun setPaused(handle: Long, paused: Boolean): Boolean
 
+    /** The indicator was hidden or shown, reported as it happened. */
+    @JvmStatic external fun indicatorChanged(handle: Long, visible: Boolean)
+
     /** The CUSTOMER pressed Pause / Allow control on the indicator. */
     @JvmStatic external fun customerPause(handle: Long, paused: Boolean)
 

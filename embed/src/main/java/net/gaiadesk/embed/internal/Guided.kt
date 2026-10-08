@@ -39,8 +39,8 @@ internal object Guided {
         return when (o.optString("t")) {
             "pointer" -> null.also { overlay?.pointer(x, y) }
             "highlight" -> null.also { overlay?.ring(x, y, null) }
-            "click" -> if (overlay?.onPill(x, y) == true) "embed_ui" else tap(a, x, y)
-            "scroll" -> if (overlay?.onPill(x, y) == true) "embed_ui" else scroll(a, x, y, o.optDouble("dx", 0.0).toFloat(), o.optDouble("dy", 0.0).toFloat())
+            "click" -> if (overlay?.onPill(x, y) == true) "embed_ui" else if (onMask(x, y, masks)) "masked" else tap(a, x, y)
+            "scroll" -> if (overlay?.onPill(x, y) == true) "embed_ui" else if (onMask(x, y, masks)) "masked" else scroll(a, x, y, o.optDouble("dx", 0.0).toFloat(), o.optDouble("dy", 0.0).toFloat())
             "type" -> secret(a.currentFocus, masks) ?: type(a, o.optString("text"))
             "key" -> secret(a.currentFocus, masks) ?: key(a, o.optString("key"), masks)
             else -> "unsupported"
@@ -93,6 +93,10 @@ internal object Guided {
         e.replace(minOf(start, end), maxOf(start, end), text)
         return null
     }
+
+    /** A window point under a mask measured now (the views may have moved since the library checked). */
+    fun onMask(x: Float, y: Float, masks: List<DoubleArray>): Boolean =
+        masks.any { x >= it[0] && y >= it[1] && x < it[0] + it[2] && y < it[1] + it[3] }
 
     /** `masked` when the focused view holds a secret or sits under a mask. */
     fun secret(focus: android.view.View?, masks: List<DoubleArray>): String? {

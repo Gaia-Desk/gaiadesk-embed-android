@@ -48,14 +48,38 @@ internal class AndroidHost(
     /** The window is FLAG_SECURE (told to the agent on change). */
     private var secureShown = false
 
+    /**
+     * Window focus as it changes (not at the next poll): screen mode stops sending the moment
+     * something covers the app, and the library hears the indicator go at once.
+     */
+    private val focusListener = android.view.ViewTreeObserver.OnWindowFocusChangeListener { has ->
+        focused = has
+        if (!has) live { NativeBridge.indicatorChanged(it, false) }
+        observe()
+    }
+    private var focusOn: android.view.View? = null
+
+    private fun watchFocus(a: Activity) {
+        focusOn?.viewTreeObserver?.takeIf { it.isAlive }?.removeOnWindowFocusChangeListener(focusListener)
+        val decor = a.window?.decorView ?: return
+        decor.viewTreeObserver.addOnWindowFocusChangeListener(focusListener)
+        focusOn = decor
+        focused = decor.hasWindowFocus()
+    }
+
     private val lifecycle = object : Application.ActivityLifecycleCallbacks {
         override fun onActivityResumed(a: Activity) {
             if (a is ProjectionRequestActivity) return
             resumed = a
             overlay?.attachTo(a)
+            watchFocus(a)
         }
         override fun onActivityPaused(a: Activity) {
-            if (resumed === a) resumed = null
+            if (resumed === a) {
+                resumed = null
+                focused = false
+                live { NativeBridge.indicatorChanged(it, false) }
+            }
         }
         override fun onActivityCreated(a: Activity, b: Bundle?) {}
         override fun onActivityStarted(a: Activity) {}
@@ -75,6 +99,7 @@ internal class AndroidHost(
 
     init {
         app.registerActivityLifecycleCallbacks(lifecycle)
+        watchFocus(first)
     }
 
     fun attach(h: AtomicLong) = synchronized(lock) { handleRef = h }
@@ -187,6 +212,8 @@ internal class AndroidHost(
             overlay = null
             visible = false
             app.unregisterActivityLifecycleCallbacks(lifecycle)
+            focusOn?.viewTreeObserver?.takeIf { it.isAlive }?.removeOnWindowFocusChangeListener(focusListener)
+            focusOn = null
         }
     }
 
@@ -200,7 +227,10 @@ internal class AndroidHost(
         // focus: under a dialog, the shade or another app nothing is sent.
         // (Cooperative: this layer runs in the app's process and an app can
         // lie to it; the library's guarantees are the rest.)
-        visible = focused && (overlay?.isVisible(a) ?: false)
+        val now = focused && (overlay?.isVisible(a) ?: false)
+        // Every edge, as soon as it is seen: frames from a hidden moment are never sent.
+        if (now != visible) live { NativeBridge.indicatorChanged(it, now) }
+        visible = now
         lastMasks = decor?.let { EmbedJson.flatten2(masks.measure(it) + appRects) }
         frame = if (decor != null && decor.width > 0) {
             val at = IntArray(2)
@@ -216,7 +246,15 @@ internal class AndroidHost(
         val a = resumed ?: return null
         val window = a.window ?: return null
         val decor = window.decorView
-        if (!decor.isAttachedToWindow || decor.width <= 0 || !decor.hasWindowFocus()) return null
+        if (!decor.isAttachedToWindow || decor.width <= 0) return null
+        if (!decor.hasWindowFocus() || overlay?.isVisible(a) != true) {
+            // Not in front, or the indicator is not up: nothing now, and the library hears it.
+            if (visible) {
+                visible = false
+                live { NativeBridge.indicatorChanged(it, false) }
+            }
+            return null
+        }
         val secure = window.attributes.flags and android.view.WindowManager.LayoutParams.FLAG_SECURE != 0
         if (secure != secureShown) {
             secureShown = secure
