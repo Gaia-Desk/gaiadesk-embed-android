@@ -97,7 +97,7 @@ internal class AndroidHost(
     override fun showIndicator(title: String, company: String, guided: Boolean): Boolean {
         main.post {
             if (overlay != null) return@post
-            val o = IndicatorOverlay(app, title, guided, onStop = { live { NativeBridge.customerStop(it) } }, onPause = { p -> live { NativeBridge.setPaused(it, p) } })
+            val o = IndicatorOverlay(resumed ?: app, title, guided, onStop = { live { NativeBridge.customerStop(it) } }, onPause = { p -> live { NativeBridge.setPaused(it, p) } })
             overlay = o
             resumed?.let { o.attachTo(it) }
             main.removeCallbacks(watch)

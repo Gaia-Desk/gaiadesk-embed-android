@@ -3,7 +3,7 @@ package net.gaiadesk.embed.internal
 import java.nio.ByteBuffer
 
 /**
- * libgaiadesk_embed.so's JNI entry points (embed/src/platform/android/jni.rs in GaiaDesk).
+ * libgaiadesk_embed.so's JNI entry points (embed/src/platform/android/binding.rs in GaiaDesk).
  * Handles are opaque; each is passed to [stop] exactly once (AndroidHost.detach guarantees it).
  */
 internal object NativeBridge {
