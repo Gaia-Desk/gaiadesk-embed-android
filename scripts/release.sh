@@ -18,6 +18,8 @@
 # Publishes nothing: it prints the commands. Usage:
 #   scripts/release.sh <version> [<path/to/jniLibs.zip>]
 set -euo pipefail
+# No `producer | grep -q` below: grep -q exits at the first match, the producer then dies of
+# SIGPIPE and pipefail turns the match into a failure (or, inside `if`, into a silent pass).
 
 VERSION="${1:?usage: scripts/release.sh <version> [jniLibs.zip]}"
 ZIP="${2:-}"
@@ -46,9 +48,9 @@ for abi in "arm64-v8a:ELF 64-bit.*aarch64" "armeabi-v7a:ELF 32-bit.*ARM, EABI5" 
   dir="${abi%%:*}" arch="${abi#*:}"
   so="$JNI/$dir/libgaiadesk_embed.so"
   [ -f "$so" ] || fail "missing $so (all three ABIs ship)"
-  file -b "$so" | grep -q "$arch" || fail "$so is not a $dir library: $(file -b "$so")"
-  if strings -a "$so" | grep -q "NOT-FOR-RELEASE"; then fail "$so is a test-source build"; fi
-  if strings -a "$so" | grep -qF "$HOME"; then fail "$so carries $HOME (a --debug build?)"; fi
+  file -b "$so" | grep "$arch" >/dev/null || fail "$so is not a $dir library: $(file -b "$so")"
+  if strings -a "$so" | grep -E "NOT-FOR-RELEASE|GAIADESK-EMBED-TEST-SOURCE-BUILD" >/dev/null; then fail "$so is a test-source build"; fi
+  if strings -a "$so" | grep -F "$HOME" >/dev/null; then fail "$so carries $HOME (a --debug build?)"; fi
 done
 
 rm -rf "$STAGE"
@@ -59,7 +61,7 @@ for f in "$ART-$VERSION.aar" "$ART-$VERSION-sources.jar" "$ART-$VERSION-javadoc.
   [ -f "$M/$f" ] || fail "the publication has no $f"
 done
 for abi in arm64-v8a armeabi-v7a x86_64; do
-  unzip -l "$M/$ART-$VERSION.aar" | grep -q "jni/$abi/libgaiadesk_embed.so" || fail "the AAR has no jni/$abi/libgaiadesk_embed.so"
+  unzip -l "$M/$ART-$VERSION.aar" | grep "jni/$abi/libgaiadesk_embed.so" >/dev/null || fail "the AAR has no jni/$abi/libgaiadesk_embed.so"
 done
 SIGNED=no
 [ -f "$M/$ART-$VERSION.aar.asc" ] && SIGNED=yes
