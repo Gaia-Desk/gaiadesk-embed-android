@@ -1,0 +1,8 @@
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+.kotlin/
+# The prebuilt library: fetched (scripts/fetch-binary.sh) or built, never committed.
+embed/src/main/jniLibs/

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Nothing here asks for a permission: sharing the app's own window needs none.
+  An app that opts into sharing the whole screen (Capture.SCREEN) adds
+  FOREGROUND_SERVICE and FOREGROUND_SERVICE_MEDIA_PROJECTION itself (README).
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <application>
+        <!-- Capture.SCREEN only: Android's own screen-capture consent. -->
+        <activity
+            android:name="net.gaiadesk.embed.internal.ProjectionRequestActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <!-- Capture.SCREEN only: MediaProjection must run in a foreground service (Android 10+). -->
+        <service
+            android:name="net.gaiadesk.embed.internal.ProjectionService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
+    </application>
+</manifest>
