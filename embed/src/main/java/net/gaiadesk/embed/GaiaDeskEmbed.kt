@@ -169,6 +169,14 @@ class GaiaDeskEmbed private constructor(handle: Long, private val host: AndroidH
         }
 
         /**
+         * A [Consent] from a token recorded earlier (`recordConsent` in a wrapper that hands the
+         * token across, e.g. React Native). The library still checks the token against the session.
+         */
+        @JvmStatic
+        fun consent(token: String, company: String, guided: Boolean = false, capture: Capture = Capture.APP): Consent =
+            Consent(token, company, capture, guided)
+
+        /**
          * Your own consent dialog said YES to sharing [capture] with [company] (and, if [guided],
          * to being guided): its [Consent] for [start]. Say exactly that in your dialog.
          */
