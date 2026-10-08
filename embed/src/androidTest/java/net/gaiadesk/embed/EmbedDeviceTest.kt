@@ -83,6 +83,15 @@ class EmbedDeviceTest {
                 assertEquals("masked", Guided.secretOf(root, everywhere, null))
                 assertEquals(null, Guided.secretOf(root, everywhere, false))
                 assertEquals("masked", Guided.secretOf(root, emptyList(), true))
+                // A masked plain EditText (a card number, an IBAN; every React Native TextInput
+                // is one) stays refused after a wrapper declared false on a blur.
+                val card = android.widget.EditText(a)
+                (a.button.parent as FrameLayout).addView(card, FrameLayout.LayoutParams(400, 120).apply { topMargin = 600 })
+                card.measure(0, 0)
+                card.layout(0, 600, 400, 720)
+                val cardMask = listOf(doubleArrayOf(0.0, 0.0, 10000.0, 10000.0))
+                assertEquals("masked", Guided.secretOf(card, cardMask, false))
+                assertEquals("an unmasked field types", null, Guided.secretOf(card, emptyList(), false))
             }
         }
     }

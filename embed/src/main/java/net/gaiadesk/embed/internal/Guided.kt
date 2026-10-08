@@ -104,15 +104,22 @@ internal object Guided {
 
     /**
      * Typing and keys: `masked` when the focus is secret. A wrapper whose whole UI is one View
-     * (Flutter, Compose) declares it ([secretFocus]); that replaces the "focused View under a
-     * mask" rule, which would refuse all typing there. A native password field is always secret.
+     * (Flutter, Compose) declares it ([secretFocus]); for such a container that replaces the
+     * "focused View under a mask" rule, which would refuse all typing there. A real text field
+     * (an EditText — every React Native TextInput is one) is still judged by where it is: a
+     * declared `false` never lets typing into a masked field. A native password field is always
+     * secret.
      */
     fun secretOf(focus: android.view.View?, masks: List<DoubleArray>, secretFocus: Boolean?): String? = when {
         secretFocus == true -> "masked"
         Masks.isSecure(focus) -> "masked"
-        secretFocus == false -> null
+        secretFocus == false && !isTextField(focus) -> null
         else -> secret(focus, masks)
     }
+
+    /** A View that is itself a text field (not a container drawing its own fields). */
+    fun isTextField(v: android.view.View?): Boolean =
+        v is EditText || (v is android.widget.TextView && v.onCheckIsTextEditor())
 
     /** `masked` when the focused view holds a secret or sits under a mask. */
     fun secret(focus: android.view.View?, masks: List<DoubleArray>): String? {
