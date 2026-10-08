@@ -96,6 +96,17 @@ class GaiaDeskEmbed private constructor(handle: Long, private val host: AndroidH
     fun setMaskedViews(views: List<View>) = host.masks.setViews(views)
 
     /**
+     * For wrappers whose whole UI is one Android View (Flutter, React Native, Compose-heavy apps):
+     * tell the SDK whether keyboard focus is in a secret field (a password, a card number) —
+     * `true` when it enters one, `false` when it leaves. While true, guided typing and keys are
+     * refused (`masked`). Once called, this replaces the "focused View under a mask" rule, which
+     * cannot see inside such a View; a native password EditText is still always refused.
+     */
+    fun setSecretFocus(secret: Boolean) {
+        host.secretFocus = secret
+    }
+
+    /**
      * Pause (or resume) guided input. False when refused: you cannot resume a pause your
      * customer made on the indicator — only they can.
      */

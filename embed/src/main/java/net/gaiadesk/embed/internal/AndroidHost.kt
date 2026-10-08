@@ -39,6 +39,8 @@ internal class AndroidHost(
     private val released = AtomicBoolean(false)
     /** Registered masked views and auto-masked password fields (measured per frame). */
     val masks = Masks()
+    /** What a wrapper declared about the focused field (`setSecretFocus`); null: not declared. */
+    @Volatile var secretFocus: Boolean? = null
     /** The app's own mask rects (`setMaskedRects`), window pixels. */
     @Volatile var appRects: List<DoubleArray> = emptyList()
     /** The masks as last measured by [observe], for the projection's thread. */
@@ -197,7 +199,7 @@ internal class AndroidHost(
     override fun deliver(actionJson: String, token: Long) {
         main.post {
             val decor = resumed?.window?.decorView
-            val reason = Guided.deliver(actionJson, resumed, overlay, masks.measure(decor) + appRects)
+            val reason = Guided.deliver(actionJson, resumed, overlay, masks.measure(decor) + appRects, secretFocus)
             if (token != 0L) live { NativeBridge.actionResult(it, token, reason) }
         }
     }

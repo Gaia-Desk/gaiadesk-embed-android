@@ -30,7 +30,11 @@ import org.json.JSONObject
  */
 internal object Guided {
     /** Deliver one request; null when applied, else why not. Main thread. */
-    fun deliver(json: String, activity: Activity?, overlay: IndicatorOverlay?, masks: List<DoubleArray> = emptyList()): String? {
+    /**
+     * [secretFocus]: what a wrapper declared about the focused field (`setSecretFocus`), or null
+     * when nothing was declared (plain Android apps: the focused View is judged).
+     */
+    fun deliver(json: String, activity: Activity?, overlay: IndicatorOverlay?, masks: List<DoubleArray> = emptyList(), secretFocus: Boolean? = null): String? {
         val o = try { JSONObject(json) } catch (e: Exception) { return "unsupported" }
         val a = activity ?: return "not_focused"
         if (a.window?.decorView?.hasWindowFocus() != true) return "not_focused"
@@ -41,8 +45,8 @@ internal object Guided {
             "highlight" -> null.also { overlay?.ring(x, y, null) }
             "click" -> if (overlay?.onPill(x, y) == true) "embed_ui" else if (onMask(x, y, masks)) "masked" else tap(a, x, y)
             "scroll" -> if (overlay?.onPill(x, y) == true) "embed_ui" else if (onMask(x, y, masks)) "masked" else scroll(a, x, y, o.optDouble("dx", 0.0).toFloat(), o.optDouble("dy", 0.0).toFloat())
-            "type" -> secret(a.currentFocus, masks) ?: type(a, o.optString("text"))
-            "key" -> secret(a.currentFocus, masks) ?: key(a, o.optString("key"), masks)
+            "type" -> secretOf(a.currentFocus, masks, secretFocus) ?: type(a, o.optString("text"))
+            "key" -> secretOf(a.currentFocus, masks, secretFocus) ?: key(a, o.optString("key"), masks)
             else -> "unsupported"
         }
     }
@@ -97,6 +101,18 @@ internal object Guided {
     /** A window point under a mask measured now (the views may have moved since the library checked). */
     fun onMask(x: Float, y: Float, masks: List<DoubleArray>): Boolean =
         masks.any { x >= it[0] && y >= it[1] && x < it[0] + it[2] && y < it[1] + it[3] }
+
+    /**
+     * Typing and keys: `masked` when the focus is secret. A wrapper whose whole UI is one View
+     * (Flutter, Compose) declares it ([secretFocus]); that replaces the "focused View under a
+     * mask" rule, which would refuse all typing there. A native password field is always secret.
+     */
+    fun secretOf(focus: android.view.View?, masks: List<DoubleArray>, secretFocus: Boolean?): String? = when {
+        secretFocus == true -> "masked"
+        Masks.isSecure(focus) -> "masked"
+        secretFocus == false -> null
+        else -> secret(focus, masks)
+    }
 
     /** `masked` when the focused view holds a secret or sits under a mask. */
     fun secret(focus: android.view.View?, masks: List<DoubleArray>): String? {

@@ -131,7 +131,13 @@ listed, and typing never reaches them.
 dependency, so a Compose password field is NOT found by itself: give its rect
 (`boundsInWindow()` from `onGloballyPositioned`) to `maskedRects` / `setMaskedRects`. In a Compose
 screen the focused View is the whole ComposeView, so while any mask is set guided typing and keys
-are refused there (fail closed: the library cannot tell which field has focus). Masks fail
+are refused there (fail closed: the library cannot tell which field has focus).
+
+**Wrappers whose whole UI is one View** (Flutter, React Native, Compose-heavy apps) tell the SDK
+where keyboard focus is instead: `help.setSecretFocus(true)` when focus enters a secret field,
+`setSecretFocus(false)` when it leaves. While true, guided typing and keys are refused (`masked`);
+once called, this replaces the "focused View under a mask" rule. A native password `EditText` is
+always refused. Masks fail
 closed: if your window cannot be located, if a frame's shape does not match the screen it claims
 (a rotation in flight), and for 300 ms after the masks or your window move, the whole picture is
 painted out.

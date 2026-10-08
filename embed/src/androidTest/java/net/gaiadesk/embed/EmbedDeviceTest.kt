@@ -75,6 +75,14 @@ class EmbedDeviceTest {
                 assertEquals("masked", Guided.secret(a.currentFocus, emptyList()))
                 assertEquals("masked", Guided.deliver("{\"t\":\"type\",\"text\":\"hunter2\"}", a, null))
                 assertEquals("", pw.text.toString())
+                // A wrapper's declaration: false never unlocks a native password field…
+                assertEquals("masked", Guided.secretOf(pw, emptyList(), false))
+                // …and a whole-screen View under a mask is not refused once declared not secret.
+                val root = pw.parent as android.view.View
+                val everywhere = listOf(doubleArrayOf(0.0, 0.0, 10000.0, 10000.0))
+                assertEquals("masked", Guided.secretOf(root, everywhere, null))
+                assertEquals(null, Guided.secretOf(root, everywhere, false))
+                assertEquals("masked", Guided.secretOf(root, emptyList(), true))
             }
         }
     }

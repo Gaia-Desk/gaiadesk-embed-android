@@ -107,6 +107,15 @@ class EmbedJsonTest {
     }
 
     @Test
+    fun aWrappersSecretFocusDecidesTyping() {
+        // No View on the JVM: the declaration alone (focus = null).
+        val card = listOf(doubleArrayOf(0.0, 0.0, 1080.0, 2280.0))
+        assertEquals("masked", Guided.secretOf(null, card, true))
+        assertEquals("declared not secret: typing allowed despite a mask on screen", null, Guided.secretOf(null, card, false))
+        assertEquals("nothing declared, nothing focused: allowed", null, Guided.secretOf(null, card, null))
+    }
+
+    @Test
     fun theConsolesKeysMapToAndroidKeyCodes() {
         assertEquals(66, EmbedJson.keyCode("Enter"))
         assertEquals(67, EmbedJson.keyCode("Backspace"))
