@@ -1,11 +1,18 @@
 # GaiaDesk embed for Android
 
-A **"Get help" button for your Android app**. Your customer taps it and agrees; **your app's
-screen** is shared with **your** support team, who see it in the GaiaDesk console's Support page and,
-if you allow it, guide it: tap, scroll and type **inside your app only**.
+[![CI](https://github.com/Gaia-Desk/gaiadesk-embed-android/actions/workflows/ci.yml/badge.svg)](https://github.com/Gaia-Desk/gaiadesk-embed-android/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/Gaia-Desk/gaiadesk-embed-android)](https://github.com/Gaia-Desk/gaiadesk-embed-android/releases/latest)
+[![License: MIT + binary licence](https://img.shields.io/badge/license-MIT%20%2B%20binary%20licence-blue)](#licence)
 
-- An AAR, `net.gaiadesk:embed-android`: a Kotlin API (no dependencies) and the prebuilt
-  `libgaiadesk_embed.so` for arm64-v8a, armeabi-v7a and x86_64. Android 8.0+ (API 26).
+A **"Get help" button for your Android app**: in-app remote support and a screen sharing SDK for
+Android (Kotlin, Views and Jetpack Compose), for customer support with optional guided control.
+Your customer taps it and agrees; **your app's screen** is shared with **your** support team, who
+see it in the GaiaDesk console's Support page and, if you allow it, guide it: tap, scroll and type
+**inside your app only**.
+
+- An AAR, `net.gaiadesk:embed-android`: a Kotlin API (no dependencies besides the Kotlin standard
+  library) and the prebuilt `libgaiadesk_embed.so` for arm64-v8a, armeabi-v7a and x86_64. Android
+  8.0+ (API 26).
 - **Consent first**: the library refuses to start until your user has agreed. Use
   `requestConsent` (an AlertDialog with the right wording) or your own.
 - **Only your app** by default: your own window, copied with PixelCopy — no permission, no system
@@ -22,23 +29,16 @@ if you allow it, guide it: tap, scroll and type **inside your app only**.
 
 ## Install
 
-### From Maven Central
-
-```kotlin
-// settings.gradle.kts: mavenCentral() in dependencyResolutionManagement.repositories (the default)
-// app/build.gradle.kts
-dependencies {
-    implementation("net.gaiadesk:embed-android:0.1.0")
-}
-```
-
-The AAR carries `libgaiadesk_embed.so` for arm64-v8a, armeabi-v7a and x86_64 and has no
-dependencies besides the Android SDK. `minSdk` 26.
-
-### Without a Maven repository (the AAR from the GitHub release)
+### The AAR from the GitHub release (works today)
 
 Every [release](https://github.com/Gaia-Desk/gaiadesk-embed-android/releases) carries
-`embed-android-<version>.aar` (and `SHA256SUMS`). Put it in your app module's `libs/` and:
+`embed-android-<version>.aar` (and `SHA256SUMS`). Put it in your app module's `libs/`:
+
+```sh
+mkdir -p app/libs
+curl -L -o app/libs/embed-android-0.1.0.aar \
+  https://github.com/Gaia-Desk/gaiadesk-embed-android/releases/download/v0.1.0/embed-android-0.1.0.aar
+```
 
 ```kotlin
 // app/build.gradle.kts
@@ -47,9 +47,23 @@ dependencies {
 }
 ```
 
-That is all: the AAR needs nothing else on the classpath. Its consumer ProGuard rules come with it.
-(An app module can take a local `.aar` this way; an Android *library* module cannot re-publish one,
-so a library of yours should take the Maven coordinate instead.)
+The AAR carries `libgaiadesk_embed.so` for arm64-v8a, armeabi-v7a and x86_64; its only dependency
+is the Kotlin standard library (`org.jetbrains.kotlin:kotlin-stdlib`), which a Kotlin app already
+has. Its consumer ProGuard rules come with it. `minSdk` 26. (An app module can take a local `.aar`
+this way; an Android *library* module cannot re-publish one, so a library of yours should take the
+Maven coordinate instead.)
+
+### From Maven Central (once published)
+
+`net.gaiadesk:embed-android` is not on Maven Central yet. Once it is:
+
+```kotlin
+// settings.gradle.kts: mavenCentral() in dependencyResolutionManagement.repositories (the default)
+// app/build.gradle.kts
+dependencies {
+    implementation("net.gaiadesk:embed-android:0.1.0")
+}
+```
 
 ### A local build
 
@@ -211,6 +225,13 @@ scripts/release.sh 0.1.0 <gaiadesk checkout>/embed/out/android/jniLibs.zip
 #    (`./gradlew :embed:publishAllPublicationsToMavenCentralRepository` with a Central Portal
 #    token and a signing key in ORG_GRADLE_PROJECT_* env vars; see embed/build.gradle.kts).
 ```
+
+## Links
+
+- AAR: `embed-android-0.1.0.aar` on the [v0.1.0 release](https://github.com/Gaia-Desk/gaiadesk-embed-android/releases/tag/v0.1.0) (Maven Central `net.gaiadesk:embed-android` once published)
+- Guide: [Embedding GaiaDesk](https://gaiadesk.net/docs/embedding-gaiadesk) on gaiadesk.net
+- Embed SDKs: [Web](https://github.com/Gaia-Desk/gaiadesk-embed) · [Electron](https://github.com/Gaia-Desk/gaiadesk-embed-electron) · [macOS (Swift)](https://github.com/Gaia-Desk/gaiadesk-embed-swift) · [C/C++ and Qt](https://github.com/Gaia-Desk/gaiadesk-embed-cpp) · [.NET](https://github.com/Gaia-Desk/gaiadesk-embed-dotnet) · [iOS](https://github.com/Gaia-Desk/gaiadesk-embed-ios) · [Android](https://github.com/Gaia-Desk/gaiadesk-embed-android) · [React Native](https://github.com/Gaia-Desk/gaiadesk-embed-react-native) · [Flutter](https://github.com/Gaia-Desk/gaiadesk-embed-flutter)
+- [Changelog](CHANGELOG.md) · [Security policy](https://github.com/Gaia-Desk/.github/blob/main/SECURITY.md)
 
 ## Licence
 
